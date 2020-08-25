@@ -17,8 +17,14 @@
 package com.example.android.trackmysleepquality.sleeptracker
 
 import android.app.Application
+import android.provider.SyncStateContract.Helpers.insert
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Transformations
 import com.example.android.trackmysleepquality.database.SleepDatabaseDao
+import com.example.android.trackmysleepquality.database.SleepNight
+import com.example.android.trackmysleepquality.formatNights
+import kotlinx.coroutines.*
 
 /**
  * ViewModel for SleepTrackerFragment.
@@ -27,28 +33,100 @@ class SleepTrackerViewModel(
         val database: SleepDatabaseDao,
         application: Application) : AndroidViewModel(application) {
 
-    //TODO (01) Declare Job() and cancel jobs in onCleared().
+    private var viewModelJob = Job()
+    private val uiScope = CoroutineScope(Dispatchers.Main +  viewModelJob)
+    private var tonight = MutableLiveData<SleepNight?>()
+    private val nights = database.getAllNights()
+    val nightsString = Transformations.map(nights) { nights ->
+        formatNights(nights, application.resources)
+    }
+    private suspend fun getTonightFromDatabase():  SleepNight? {
+        return withContext(Dispatchers.IO) {
+            var night = database.getTonight()
 
-    //TODO (02) Define uiScope for coroutines.
+            if (night?.endTimeMilli != night?.startTimeMilli) {
+                night = null
+            }
+            night
+        }
+    }
 
-    //TODO (03) Create a MutableLiveData variable tonight for one SleepNight.
+    fun onClear() {
+        uiScope.launch {
+            clear()
+            tonight.value = null
+        }
+    }
 
-    //TODO (04) Define a variable, nights. Then getAllNights() from the database
+    suspend fun clear() {
+        withContext(Dispatchers.IO) {
+            database.clear()
+        }
+    }
+
+    private suspend fun update(night: SleepNight) {
+        withContext(Dispatchers.IO) {
+            database.update(night)
+        }
+    }
+    private suspend fun insert(night: SleepNight) {
+        withContext(Dispatchers.IO) {
+            database.insert(night)
+        }
+    }
+    fun onStartTracking() {
+        uiScope.launch {
+            val newNight = SleepNight()
+            insert(newNight)
+            tonight.value = getTonightFromDatabase()
+
+
+        }
+
+    }
+
+    fun onStopTracking() {
+        uiScope.launch {
+            val oldNight = tonight.value ?: return@launch
+            oldNight.endTimeMilli = System.currentTimeMillis()
+            update(oldNight)
+        }
+    }
+
+    init {
+        initializeTonight()
+    }
+    private fun initializeTonight() {
+        uiScope.launch {
+            tonight.value = getTonightFromDatabase()
+        }
+    }
+    override fun onCleared() {
+        super.onCleared()
+        viewModelJob.cancel()
+    }
+    //DONE (01) Declare Job() and cancel jobs in onCleared().
+
+    //DONE (02) Define uiScope for coroutines.
+
+    //DONE (03) Create a MutableLiveData variable tonight for one SleepNight.
+
+    //DONE (04) Define a variable, nights. Then getAllNights() from the database
     //and assign to the nights variable.
 
-    //TODO (05) In an init block, initializeTonight(), and implement it to launch a coroutine
+    //DONE (05) In an init block, initializeTonight(), and implement it to launch a coroutine
     //to getTonightFromDatabase().
 
-    //TODO (06) Implement getTonightFromDatabase()as a suspend function.
+    //DONE (06) Implement getTonightFromDatabase()as a suspend function.
 
-    //TODO (07) Implement the click handler for the Start button, onStartTracking(), using
+    //DONE (07) Implement the click handler for the Start button, onStartTracking(), using
     //coroutines. Define the suspend function insert(), to insert a new night into the database.
 
-    //TODO (08) Create onStopTracking() for the Stop button with an update() suspend function.
+    //DONE (08) Create onStopTracking() for the Stop button with an update() suspend function.
 
-    //TODO (09) For the Clear button, created onClear() with a clear() suspend function.
+    //DONE (09) For the Clear button, created onClear() with a clear() suspend function.
 
-    //TODO (12) Transform nights into a nightsString using formatNights().
+    //DONE (12) Transform nights into a nightsString using formatNights().
 
 }
 
